@@ -39,8 +39,8 @@ def test_list_models(client, fixture_models, httpx_mock: HTTPXMock):
     )
     
     response = client.list_models(page=1, refresh=True)
-    assert "models" in response
-    assert len(response["models"]) == 5
+    assert "data" in response
+    assert len(response["data"]) == 5
 
 
 def test_fetch_all_models(client, fixture_models, httpx_mock: HTTPXMock):

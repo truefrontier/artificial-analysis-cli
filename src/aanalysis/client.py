@@ -146,7 +146,7 @@ class ArtificialAnalysisClient:
             refresh: Bust cache
             
         Returns:
-            Response with models list
+            Response with meta and data keys
         """
         return self._request(
             "/language/models/free",
@@ -169,32 +169,18 @@ class ArtificialAnalysisClient:
         while True:
             response = self.list_models(page=page, refresh=refresh)
             
-            # Handle different response shapes
-            if "models" in response:
-                page_models = response["models"]
-            elif isinstance(response, list):
-                page_models = response
-            else:
-                # Try to find a list in the response
-                for value in response.values():
-                    if isinstance(value, list):
-                        page_models = value
-                        break
-                else:
-                    page_models = []
+            # API returns {meta: {...}, data: [...]}
+            page_models = response.get("data", [])
             
             if not page_models:
                 break
             
             models.extend(page_models)
             
-            # Check if there are more pages
-            if "pagination" in response:
-                pagination = response["pagination"]
-                if not pagination.get("has_next", False):
-                    break
-            else:
-                # No pagination info, assume single page
+            # Check pagination
+            meta = response.get("meta", {})
+            pagination = meta.get("pagination", {})
+            if not pagination.get("has_more", False):
                 break
             
             page += 1

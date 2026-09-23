@@ -25,7 +25,7 @@ def models():
     """Load test fixture models."""
     fixture_path = Path(__file__).parent / "fixtures" / "models.json"
     data = json.loads(fixture_path.read_text())
-    return [normalize_model(m) for m in data["models"]]
+    return [normalize_model(m) for m in data["data"]]
 
 
 def test_is_open_weight(models):
@@ -84,9 +84,12 @@ def test_rank_by_smart_cheap(models):
     """Test ranking by cost efficiency."""
     ranked = rank_by_smart_cheap(models, limit=3)
     assert len(ranked) >= 1
-    # DeepSeek should rank high (cheap and decent)
-    names = [m["name"] for m in ranked[:3]]
-    assert any("DeepSeek" in name for name in names)
+    # Should prefer models with good intel/cost ratio above median intelligence
+    # Check that all have intel >= median
+    intels = [get_intelligence_index(m) for m in models if get_intelligence_index(m) is not None]
+    median_intel = sorted(intels)[len(intels) // 2]
+    for model in ranked:
+        assert get_intelligence_index(model) >= median_intel
 
 
 def test_filter_models(models):

@@ -78,10 +78,17 @@ def build_model_table_data(models: list[dict[str, Any]]) -> list[dict[str, Any]]
     """Build table data from models with enriched metrics."""
     rows = []
     for i, model in enumerate(models, 1):
+        # Extract creator name from object
+        creator = model.get("model_creator", {})
+        if isinstance(creator, dict):
+            creator_name = creator.get("name", "?")
+        else:
+            creator_name = model.get("model_creator_name", "?")
+        
         row = {
             "rank": i,
             "name": model.get("name", "?"),
-            "creator": model.get("model_creator", "?"),
+            "creator": creator_name,
             "intelligence_index": get_intelligence_index(model),
             "coding_index": get_coding_index(model),
             "agentic_index": get_agentic_index(model),
@@ -130,10 +137,17 @@ def output_models_table(
         table.add_column("Pareto", justify="center")
     
     for i, model in enumerate(models, 1):
+        # Extract creator name
+        creator = model.get("model_creator", {})
+        if isinstance(creator, dict):
+            creator_name = creator.get("name", "?")
+        else:
+            creator_name = model.get("model_creator_name", "?")
+        
         row = [
             str(i),
             model.get("name", "?"),
-            model.get("model_creator", "?"),
+            creator_name,
             format_number(get_intelligence_index(model), 1),
             format_number(get_coding_index(model), 1),
             format_number(get_tokens_per_second(model), 0),

@@ -25,7 +25,7 @@ def load_fixture_models():
     """Load test fixture models."""
     fixture_path = Path(__file__).parent / "tests" / "fixtures" / "models.json"
     data = json.loads(fixture_path.read_text())
-    return [normalize_model(m) for m in data["models"]]
+    return [normalize_model(m) for m in data["data"]]
 
 
 def test_all_json():

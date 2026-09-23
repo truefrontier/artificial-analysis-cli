@@ -218,6 +218,39 @@ This CLI uses the [Artificial Analysis Free Data API v2](https://artificialanaly
 - `performance.median_output_tokens_per_second`
 - `performance.median_time_to_first_token_seconds`
 
+### Response Structure
+
+```json
+{
+  "meta": {
+    "tier": "free",
+    "intelligence_index_version": 4.3,
+    "pagination": {
+      "page": 1,
+      "page_size": 200,
+      "total_pages": 4,
+      "has_more": true
+    }
+  },
+  "data": [...]
+}
+```
+
+### Model Fields
+
+Each model in `data` includes:
+- `id`, `name`, `slug`, `release_date`
+- `model_creator`: `{id, name}` (object, not string)
+- `evaluations` with intelligence/coding/agentic indices
+- `artificial_analysis_intelligence_index_cost` with `cost_per_task.total_cost`
+- `pricing` with `price_1m_input_tokens`, `price_1m_output_tokens`, cache fields
+- `performance` with tokens/sec, TTFT, end-to-end time
+
+### Digest Algorithms
+
+**smart-fast**: z(intel) + z(log tok/s), requires intel ≥ median, marks Pareto frontier  
+**smart-cheap**: intel / cost_per_task when available, else intel / ((in + 3*out)/4), requires intel ≥ median
+
 **Note**: The CLI normalizes both `price_1m_input_tokens` and `price_1m_input` field naming variants.
 
 ## Attribution

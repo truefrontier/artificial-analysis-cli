@@ -23,6 +23,7 @@ OPEN_WEIGHT_FAMILIES = {
     "mpt",
     "stablelm",
     "solar",
+    "kimi",
 }
 
 OPEN_WEIGHT_CREATORS = {
@@ -30,6 +31,7 @@ OPEN_WEIGHT_CREATORS = {
     "alibaba",
     "deepseek",
     "mistral ai",
+    "mistral",
     "google",
     "microsoft",
     "tsinghua",
@@ -38,33 +40,23 @@ OPEN_WEIGHT_CREATORS = {
     "stability ai",
     "eleutherai",
     "together",
+    "z ai",
+    "kimi",
 }
 
 
 def normalize_model(model: dict[str, Any]) -> dict[str, Any]:
     """Normalize model data to consistent schema.
     
-    Handles different field naming conventions in the API.
+    Handles model_creator object extraction.
     """
     normalized = model.copy()
     
-    # Normalize pricing fields
-    if "pricing" in normalized:
-        pricing = normalized["pricing"]
-        # Handle both price_1m_input and price_1m_input_tokens
-        if "price_1m_input_tokens" in pricing and "price_1m_input" not in pricing:
-            pricing["price_1m_input"] = pricing["price_1m_input_tokens"]
-        if "price_1m_output_tokens" in pricing and "price_1m_output" not in pricing:
-            pricing["price_1m_output"] = pricing["price_1m_output_tokens"]
-    
-    # Normalize performance fields
-    if "performance" in normalized:
-        perf = normalized["performance"]
-        # Ensure we have short field names
-        if "median_output_tokens_per_second" not in perf and "output_tokens_per_second" in perf:
-            perf["median_output_tokens_per_second"] = perf["output_tokens_per_second"]
-        if "median_time_to_first_token_seconds" not in perf and "time_to_first_token_seconds" in perf:
-            perf["median_time_to_first_token_seconds"] = perf["time_to_first_token_seconds"]
+    # Extract creator name from object if needed
+    if "model_creator" in normalized and isinstance(normalized["model_creator"], dict):
+        normalized["model_creator_name"] = normalized["model_creator"].get("name", "")
+    else:
+        normalized["model_creator_name"] = normalized.get("model_creator", "")
     
     return normalized
 
@@ -75,7 +67,7 @@ def is_open_weight(model: dict[str, Any]) -> bool:
     Free tier typically lacks explicit licensing fields.
     """
     name = model.get("name", "").lower()
-    creator = model.get("model_creator", "").lower()
+    creator_name = model.get("model_creator_name", "").lower()
     
     # Check family patterns
     for family in OPEN_WEIGHT_FAMILIES:
@@ -84,9 +76,12 @@ def is_open_weight(model: dict[str, Any]) -> bool:
     
     # Check creator
     for creator_pattern in OPEN_WEIGHT_CREATORS:
-        if creator_pattern in creator:
+        if creator_pattern in creator_name:
             # But exclude obvious proprietary patterns
-            if any(prop in name for prop in ["gpt-4", "claude", "gemini-pro", "palm"]):
+            if any(prop in name for prop in ["gpt-4", "gpt-5", "gpt-6", "claude", "gemini-pro", "palm"]):
+                # Unless it's explicitly gpt-oss
+                if "gpt-oss" in name:
+                    return True
                 continue
             return True
     
@@ -112,10 +107,18 @@ def get_agentic_index(model: dict[str, Any]) -> Optional[float]:
 
 
 def get_cost_per_intel_task(model: dict[str, Any]) -> Optional[float]:
-    """Extract cost per intelligence task."""
-    cost = model.get("artificial_analysis_intelligence_index_cost", {})
-    per_task = cost.get("cost_per_task", {})
-    return per_task.get("total_cost")
+    """Extract cost per intelligence task (prefer cost_per_task.total_cost)."""
+    cost_obj = model.get("artificial_analysis_intelligence_index_cost")
+    if cost_obj is None:
+        return None
+    
+    # Prefer cost_per_task.total_cost
+    if isinstance(cost_obj, dict):
+        per_task = cost_obj.get("cost_per_task")
+        if isinstance(per_task, dict):
+            return per_task.get("total_cost")
+    
+    return None
 
 
 def get_tokens_per_second(model: dict[str, Any]) -> Optional[float]:
@@ -133,31 +136,105 @@ def get_time_to_first_token(model: dict[str, Any]) -> Optional[float]:
 def get_input_price(model: dict[str, Any]) -> Optional[float]:
     """Extract price per 1M input tokens in USD."""
     pricing = model.get("pricing", {})
-    return pricing.get("price_1m_input") or pricing.get("price_1m_input_tokens")
+    return pricing.get("price_1m_input_tokens")
 
 
 def get_output_price(model: dict[str, Any]) -> Optional[float]:
     """Extract price per 1M output tokens in USD."""
     pricing = model.get("pricing", {})
-    return pricing.get("price_1m_output") or pricing.get("price_1m_output_tokens")
+    return pricing.get("price_1m_output_tokens")
 
 
 def compute_smart_score(model: dict[str, Any]) -> Optional[float]:
     """Compute composite intelligence + speed score.
     
-    Normalizes intelligence (0-100) and tokens/sec, then takes geometric mean.
+    Uses z(intel) + z(log tok/s) but requires intel ≥ median.
     """
     intel = get_intelligence_index(model)
     tok_s = get_tokens_per_second(model)
     
-    if intel is None or tok_s is None:
+    if intel is None or tok_s is None or tok_s <= 0:
         return None
     
-    # Normalize speed to 0-100 scale (assume max ~200 tok/s)
-    speed_norm = min(tok_s / 2.0, 100.0)
+    # Will be filtered to median later
+    import math
+    return (intel, math.log(tok_s))
+
+
+def rank_by_smart_fast(models: list[dict[str, Any]], limit: Optional[int] = None) -> list[dict[str, Any]]:
+    """Rank models by composite intelligence + speed score with median filtering."""
+    import math
     
-    # Geometric mean
-    return (intel * speed_norm) ** 0.5
+    # Get models with both metrics
+    scored = []
+    for model in models:
+        intel = get_intelligence_index(model)
+        tok_s = get_tokens_per_second(model)
+        if intel is not None and tok_s is not None and tok_s > 0:
+            scored.append({
+                "model": model,
+                "intel": intel,
+                "log_tok_s": math.log(tok_s),
+                "tok_s": tok_s
+            })
+    
+    if not scored:
+        return []
+    
+    # Calculate median intelligence
+    intels = sorted([s["intel"] for s in scored])
+    median_intel = intels[len(intels) // 2]
+    
+    # Filter to models with intel ≥ median
+    scored = [s for s in scored if s["intel"] >= median_intel]
+    
+    if not scored:
+        return []
+    
+    # Calculate z-scores
+    intel_mean = sum(s["intel"] for s in scored) / len(scored)
+    intel_std = (sum((s["intel"] - intel_mean) ** 2 for s in scored) / len(scored)) ** 0.5
+    
+    log_tok_mean = sum(s["log_tok_s"] for s in scored) / len(scored)
+    log_tok_std = (sum((s["log_tok_s"] - log_tok_mean) ** 2 for s in scored) / len(scored)) ** 0.5
+    
+    # Avoid division by zero
+    if intel_std == 0:
+        intel_std = 1
+    if log_tok_std == 0:
+        log_tok_std = 1
+    
+    # Calculate composite scores
+    for s in scored:
+        z_intel = (s["intel"] - intel_mean) / intel_std
+        z_log_tok = (s["log_tok_s"] - log_tok_mean) / log_tok_std
+        s["score"] = z_intel + z_log_tok
+    
+    # Sort by score
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    
+    # Extract models and add score
+    ranked = []
+    for s in scored:
+        model = s["model"]
+        model["_smart_fast_score"] = s["score"]
+        model["_intelligence_index"] = s["intel"]
+        model["_tokens_per_second"] = s["tok_s"]
+        ranked.append(model)
+    
+    # Mark Pareto frontier
+    if ranked:
+        pareto = is_pareto_optimal(
+            ranked,
+            "_intelligence_index",
+            "_tokens_per_second",
+            x_higher_better=True,
+            y_higher_better=True
+        )
+        for i, model in enumerate(ranked):
+            model["_pareto_intel_speed"] = pareto[i]
+    
+    return ranked[:limit] if limit else ranked
 
 
 def is_pareto_optimal(
@@ -225,8 +302,8 @@ def filter_models(
         
         # Creator filter
         if creator:
-            model_creator = model.get("model_creator", "")
-            if creator.lower() not in model_creator.lower():
+            model_creator_name = model.get("model_creator_name", "")
+            if creator.lower() not in model_creator_name.lower():
                 continue
         
         # Intelligence filter
@@ -254,59 +331,71 @@ def rank_by_intelligence(models: list[dict[str, Any]], limit: Optional[int] = No
     return ranked[:limit] if limit else ranked
 
 
-def rank_by_smart_fast(models: list[dict[str, Any]], limit: Optional[int] = None) -> list[dict[str, Any]]:
-    """Rank models by composite intelligence + speed score."""
-    # Compute scores
+def rank_by_smart_cheap(models: list[dict[str, Any]], limit: Optional[int] = None) -> list[dict[str, Any]]:
+
+    """Rank models by cost efficiency with median intelligence filtering.
+    
+    Prefers intel / cost_per_task.total_cost when present, 
+    else intel / ((in + 3*out) / 4).
+    Requires intel ≥ median of scored set.
+    """
+    # Calculate efficiency scores
     scored = []
     for model in models:
-        score = compute_smart_score(model)
-        if score is not None:
-            scored.append((model, score))
-    
-    # Sort by score
-    scored.sort(key=lambda x: x[1], reverse=True)
-    ranked = [m for m, _ in scored]
-    
-    # Mark Pareto frontier
-    if ranked:
-        pareto = is_pareto_optimal(
-            ranked,
-            "intelligence_index",
-            "tokens_per_second",
-            x_higher_better=True,
-            y_higher_better=True
-        )
-        for i, model in enumerate(ranked):
-            model["_pareto_intel_speed"] = pareto[i]
-    
-    return ranked[:limit] if limit else ranked
-
-
-def rank_by_smart_cheap(models: list[dict[str, Any]], limit: Optional[int] = None) -> list[dict[str, Any]]:
-    """Rank models by cost efficiency (prefer low cost per intelligence task)."""
-    # Prefer cost_per_intel_task if available
-    with_cost = []
-    for model in models:
-        cost = get_cost_per_intel_task(model)
         intel = get_intelligence_index(model)
+        if intel is None:
+            continue
         
-        if cost is not None and intel is not None:
-            with_cost.append((model, cost))
-        elif intel is not None:
-            # Fallback: use blended $/MTok if cost_per_task missing
+        cost_per_task = get_cost_per_intel_task(model)
+        
+        if cost_per_task is not None and cost_per_task > 0:
+            # Prefer cost_per_task
+            efficiency = intel / cost_per_task
+            basis = "task"
+        else:
+            # Fallback to blended pricing
             in_price = get_input_price(model)
             out_price = get_output_price(model)
             if in_price is not None and out_price is not None:
-                # Use simple average as proxy
-                blended = (in_price + out_price) / 2.0
-                # Normalize by intelligence (lower is better)
-                if intel > 0:
-                    efficiency = blended / intel
-                    with_cost.append((model, efficiency))
+                blended = (in_price + 3 * out_price) / 4.0
+                if blended > 0:
+                    efficiency = intel / blended
+                    basis = "blended"
+                else:
+                    continue
+            else:
+                continue
+        
+        scored.append({
+            "model": model,
+            "intel": intel,
+            "efficiency": efficiency,
+            "basis": basis
+        })
     
-    # Sort by cost (ascending)
-    with_cost.sort(key=lambda x: x[1])
-    ranked = [m for m, _ in with_cost]
+    if not scored:
+        return []
+    
+    # Calculate median intelligence
+    intels = sorted([s["intel"] for s in scored])
+    median_intel = intels[len(intels) // 2]
+    
+    # Filter to models with intel ≥ median
+    scored = [s for s in scored if s["intel"] >= median_intel]
+    
+    if not scored:
+        return []
+    
+    # Sort by efficiency (descending)
+    scored.sort(key=lambda x: x["efficiency"], reverse=True)
+    
+    # Extract models and add metadata
+    ranked = []
+    for s in scored:
+        model = s["model"]
+        model["_cost_efficiency"] = s["efficiency"]
+        model["_cost_basis"] = s["basis"]
+        ranked.append(model)
     
     return ranked[:limit] if limit else ranked
 

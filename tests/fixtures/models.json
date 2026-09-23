@@ -1,0 +1,113 @@
+{
+  "models": [
+    {
+      "name": "GPT-4o",
+      "slug": "gpt-4o",
+      "model_creator": "OpenAI",
+      "evaluations": {
+        "artificial_analysis_intelligence_index": 85.2,
+        "artificial_analysis_coding_index": 88.5
+      },
+      "artificial_analysis_intelligence_index_cost": {
+        "cost_per_task": {
+          "total_cost": 0.015
+        }
+      },
+      "pricing": {
+        "price_1m_input": 5.0,
+        "price_1m_output": 15.0
+      },
+      "performance": {
+        "median_output_tokens_per_second": 85.0,
+        "median_time_to_first_token_seconds": 0.35
+      }
+    },
+    {
+      "name": "Claude 3.5 Sonnet",
+      "slug": "claude-3-5-sonnet",
+      "model_creator": "Anthropic",
+      "evaluations": {
+        "artificial_analysis_intelligence_index": 87.1,
+        "artificial_analysis_coding_index": 90.2
+      },
+      "artificial_analysis_intelligence_index_cost": {
+        "cost_per_task": {
+          "total_cost": 0.012
+        }
+      },
+      "pricing": {
+        "price_1m_input": 3.0,
+        "price_1m_output": 15.0
+      },
+      "performance": {
+        "median_output_tokens_per_second": 92.0,
+        "median_time_to_first_token_seconds": 0.28
+      }
+    },
+    {
+      "name": "Llama 3.1 405B",
+      "slug": "llama-3-1-405b",
+      "model_creator": "Meta",
+      "evaluations": {
+        "artificial_analysis_intelligence_index": 78.5,
+        "artificial_analysis_coding_index": 75.8
+      },
+      "artificial_analysis_intelligence_index_cost": {
+        "cost_per_task": {
+          "total_cost": 0.008
+        }
+      },
+      "pricing": {
+        "price_1m_input": 2.0,
+        "price_1m_output": 8.0
+      },
+      "performance": {
+        "median_output_tokens_per_second": 65.0,
+        "median_time_to_first_token_seconds": 0.42
+      }
+    },
+    {
+      "name": "DeepSeek Coder V2",
+      "slug": "deepseek-coder-v2",
+      "model_creator": "DeepSeek",
+      "evaluations": {
+        "artificial_analysis_intelligence_index": 72.3,
+        "artificial_analysis_coding_index": 82.1
+      },
+      "artificial_analysis_intelligence_index_cost": {
+        "cost_per_task": {
+          "total_cost": 0.003
+        }
+      },
+      "pricing": {
+        "price_1m_input": 0.5,
+        "price_1m_output": 2.0
+      },
+      "performance": {
+        "median_output_tokens_per_second": 120.0,
+        "median_time_to_first_token_seconds": 0.18
+      }
+    },
+    {
+      "name": "Qwen 2.5 72B",
+      "slug": "qwen-2-5-72b",
+      "model_creator": "Alibaba",
+      "evaluations": {
+        "artificial_analysis_intelligence_index": 75.1
+      },
+      "artificial_analysis_intelligence_index_cost": {
+        "cost_per_task": {
+          "total_cost": 0.006
+        }
+      },
+      "pricing": {
+        "price_1m_input": 1.2,
+        "price_1m_output": 5.0
+      },
+      "performance": {
+        "median_output_tokens_per_second": 95.0,
+        "median_time_to_first_token_seconds": 0.25
+      }
+    }
+  ]
+}

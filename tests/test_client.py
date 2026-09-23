@@ -88,3 +88,52 @@ def test_caching(client, fixture_models, httpx_mock: HTTPXMock, tmp_path):
     # Third request with refresh - hits API again
     response3 = client.list_models(page=1, refresh=True)
     assert len(httpx_mock.get_requests()) == 2
+
+
+def test_top_level_pagination(client, httpx_mock: HTTPXMock):
+    """Test pagination with top-level pagination object (production bug fix)."""
+    # Page 1 with top-level pagination
+    page1 = {
+        "tier": "free",
+        "intelligence_index_version": 4.3,
+        "pagination": {
+            "page": 1,
+            "page_size": 200,
+            "total_pages": 2,
+            "has_more": True
+        },
+        "data": [
+            {"id": "1", "name": "Model 1", "slug": "model-1"}
+        ]
+    }
+    
+    # Page 2 with top-level pagination
+    page2 = {
+        "tier": "free",
+        "intelligence_index_version": 4.3,
+        "pagination": {
+            "page": 2,
+            "page_size": 200,
+            "total_pages": 2,
+            "has_more": False
+        },
+        "data": [
+            {"id": "2", "name": "Model 2", "slug": "model-2"}
+        ]
+    }
+    
+    httpx_mock.add_response(
+        url="https://artificialanalysis.ai/api/v2/language/models/free?page=1",
+        json=page1
+    )
+    httpx_mock.add_response(
+        url="https://artificialanalysis.ai/api/v2/language/models/free?page=2",
+        json=page2
+    )
+    
+    # Fetch all models - should get both pages
+    models = client.fetch_all_models(refresh=True)
+    assert len(models) == 2
+    assert models[0]["name"] == "Model 1"
+    assert models[1]["name"] == "Model 2"
+    assert len(httpx_mock.get_requests()) == 2

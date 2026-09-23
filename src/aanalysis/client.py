@@ -169,7 +169,7 @@ class ArtificialAnalysisClient:
         while True:
             response = self.list_models(page=page, refresh=refresh)
             
-            # API returns {meta: {...}, data: [...]}
+            # API returns data at top level
             page_models = response.get("data", [])
             
             if not page_models:
@@ -177,10 +177,11 @@ class ArtificialAnalysisClient:
             
             models.extend(page_models)
             
-            # Check pagination
-            meta = response.get("meta", {})
-            pagination = meta.get("pagination", {})
-            if not pagination.get("has_more", False):
+            # Check pagination (top-level or nested in meta)
+            pagination = response.get("pagination") or (response.get("meta") or {}).get("pagination") or {}
+            # Tolerate both has_more and has_next
+            has_more = pagination.get("has_more", False) or pagination.get("has_next", False)
+            if not has_more:
                 break
             
             page += 1

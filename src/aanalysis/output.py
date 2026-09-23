@@ -87,6 +87,8 @@ def build_model_table_data(models: list[dict[str, Any]]) -> list[dict[str, Any]]
         
         row = {
             "rank": i,
+            "id": model.get("id", "?"),
+            "slug": model.get("slug", "?"),
             "name": model.get("name", "?"),
             "creator": creator_name,
             "intelligence_index": get_intelligence_index(model),

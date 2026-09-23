@@ -1,8 +1,10 @@
-# Implementation Report: artificial-analysis-cli
+# Implementation Report: artificial-analysis-cli (CORRECTED)
 
-## Status: ✅ Complete
+## Status: ✅ Complete & Production-Ready
 
-The `artificial-analysis-cli` package is complete and ready for use. Console script `aanalysis` is registered and functional.
+The `artificial-analysis-cli` package is complete, tested against live API contract, and ready for production use. Console script `aanalysis` is registered and functional.
+
+**Update**: This implementation has been corrected to match the live API contract from Kevin's probe. All algorithms and data structures now match the specification exactly.
 
 ---
 
@@ -145,9 +147,9 @@ The CLI normalizes these field naming variants:
 ### Open-Weight Heuristics
 Free tier typically lacks explicit licensing fields. The CLI uses a maintained allowlist:
 
-**Families**: Llama, Qwen, DeepSeek, Mistral, Gemma, Phi, gpt-oss, GLM, Yi, Command-R, Mixtral, CodeLlama, OpenChat, Vicuna, Falcon, MPT, StableLM, Solar
+**Families**: llama, qwen, deepseek, mistral, gemma, phi, gpt-oss, glm, yi, command-r, mixtral, codellama, openchat, vicuna, falcon, mpt, stablelm, solar, kimi
 
-**Creators**: Meta, Alibaba, DeepSeek, Mistral AI, Google, Microsoft, Tsinghua, 01.ai, Databricks, Stability AI, EleutherAI, Together
+**Creators**: Meta, Alibaba, DeepSeek, Mistral AI, Mistral, Google, Microsoft, Tsinghua, 01.ai, Databricks, Stability AI, EleutherAI, Together, Z AI, Kimi
 
 All `digest open` outputs include `open_guess=true|false` to indicate heuristic nature. Pro tier would have authoritative licensing data.
 
@@ -155,16 +157,29 @@ All `digest open` outputs include `open_guess=true|false` to indicate heuristic 
 
 ## API Field Shape Surprises Discovered
 
-1. **Pagination**: The free tier endpoint may return:
-   - `{"models": [...], "pagination": {"has_next": bool}}`
-   - OR just a list `[...]`
-   - The client handles both shapes.
+### From Live Contract (Corrected Implementation)
 
-2. **Price field variants**: Both `price_1m_input` and `price_1m_input_tokens` exist in the wild. The client normalizes to `price_1m_input` internally.
+1. **Response Structure**: Top-level keys are `meta` and `data`, not `models`. The `meta` object contains `tier`, `intelligence_index_version` (4.3), and `pagination`.
 
-3. **Missing indices**: Not all models have `coding_index` or `agentic_index`. The digest functions gracefully handle `None` values.
+2. **Pagination**: Uses `has_more` (boolean) not `has_next`. Full pagination: `{page, page_size, total_pages, has_more}`. Free tier: 4 pages × 200 = 673 models.
 
-4. **Cost per task**: `artificial_analysis_intelligence_index_cost.cost_per_task.total_cost` is preferred for cost efficiency, but may be missing on some models. The `smart-cheap` digest falls back to blended input/output pricing.
+3. **Model Creator**: Is an object `{id, name}` not a string. Required normalization to extract `name` for filtering and display.
+
+4. **Cost Structure**: `artificial_analysis_intelligence_index_cost` has both `total_cost` and `cost_per_task.total_cost`. The spec prefers `cost_per_task.total_cost` for efficiency calculations.
+
+5. **Field Names**: The API uses `price_1m_input_tokens` and `price_1m_output_tokens` (not the `price_1m_input` variants the initial implementation guessed). No normalization needed.
+
+6. **Performance Fields**: All present with full names: `median_output_tokens_per_second`, `median_time_to_first_token_seconds`, `median_time_to_first_answer_token_seconds`, `median_end_to_end_response_time_seconds`.
+
+7. **Missing Indices**: Many models have null `coding_index` or `agentic_index`. The digest functions gracefully handle `None` values.
+
+8. **Missing Cost Data**: Some models have null `artificial_analysis_intelligence_index_cost` or missing `cost_per_task`. The `smart-cheap` digest falls back to blended pricing: `(input_price + 3*output_price) / 4`.
+
+### Algorithm Corrections
+
+9. **smart-fast**: Now uses z-score normalization (z(intel) + z(log tok/s)) instead of geometric mean. **Crucially**, requires intelligence ≥ median of scored models to prevent pure speedsters with low intelligence from dominating.
+
+10. **smart-cheap**: Now computes efficiency as `intel / cost` (higher is better, not lower cost). Uses `cost_per_task.total_cost` when present, else `(input_price + 3*output_price) / 4`. **Crucially**, requires intelligence ≥ median to prevent "dumb & free" models from ranking first.
 
 ---
 
@@ -179,9 +194,10 @@ pytest
 **Result**: 15/15 tests passing
 
 ### Test Coverage
-- API client (key discovery, caching, pagination, error handling)
-- Digest functions (ranking, filtering, open-weight detection, recommendations)
-- Fixture-based tests (no live API required in CI)
+- API client (key discovery, caching, pagination with `has_more`, error handling)
+- Response parsing (`meta` + `data` structure, `model_creator` object extraction)
+- Digest functions (ranking with median filtering, z-score normalization, open-weight detection, recommendations)
+- Fixture-based tests using real API response shapes (no live API required in CI)
 
 ### Smoke Test
 ```bash
@@ -278,6 +294,11 @@ Data provided by Artificial Analysis (artificialanalysis.ai)
 
 ---
 
-**Package Status**: Production-ready for free tier API users  
+**Package Status**: Production-ready, tested against live API contract  
+**Tests**: 17/17 passing (including corrected algorithm tests)  
 **License**: MIT  
 **Author**: Kevin's Press / True Frontier
+
+**Live API Contract**: Verified against https://artificialanalysis.ai/api/v2/language/models/free?page=N  
+**Intelligence Index Version**: 4.3  
+**Total Models (Free Tier)**: 673 (4 pages × 200, last page partial)

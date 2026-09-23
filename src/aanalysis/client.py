@@ -177,10 +177,10 @@ class ArtificialAnalysisClient:
             
             models.extend(page_models)
             
-            # Check pagination
-            meta = response.get("meta", {})
-            pagination = meta.get("pagination", {})
-            if not pagination.get("has_more", False):
+            # Check pagination - handle both top-level and meta.pagination
+            pagination = response.get("pagination") or (response.get("meta") or {}).get("pagination") or {}
+            has_more = pagination.get("has_more", False) or pagination.get("has_next", False)
+            if not has_more:
                 break
             
             page += 1

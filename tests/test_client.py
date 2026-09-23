@@ -88,3 +88,61 @@ def test_caching(client, fixture_models, httpx_mock: HTTPXMock, tmp_path):
     # Third request with refresh - hits API again
     response3 = client.list_models(page=1, refresh=True)
     assert len(httpx_mock.get_requests()) == 2
+
+
+def test_fetch_all_models_top_level_pagination(client, httpx_mock: HTTPXMock):
+    """Test fetching all models with top-level pagination (new API format)."""
+    # Page 1 - top-level pagination with has_more=True
+    page1_response = {
+        "pagination": {
+            "page": 1,
+            "page_size": 2,
+            "total_pages": 2,
+            "has_more": True
+        },
+        "data": [
+            {
+                "id": "1",
+                "name": "GPT-4o",
+                "slug": "gpt-4o"
+            },
+            {
+                "id": "2",
+                "name": "Claude 3.5 Sonnet",
+                "slug": "claude-3-5-sonnet"
+            }
+        ]
+    }
+    
+    # Page 2 - top-level pagination with has_more=False
+    page2_response = {
+        "pagination": {
+            "page": 2,
+            "page_size": 2,
+            "total_pages": 2,
+            "has_more": False
+        },
+        "data": [
+            {
+                "id": "3",
+                "name": "Muse Spark 1.3",
+                "slug": "muse-spark-1-3"
+            }
+        ]
+    }
+    
+    httpx_mock.add_response(
+        url="https://artificialanalysis.ai/api/v2/language/models/free?page=1",
+        json=page1_response
+    )
+    httpx_mock.add_response(
+        url="https://artificialanalysis.ai/api/v2/language/models/free?page=2",
+        json=page2_response
+    )
+    
+    models = client.fetch_all_models(refresh=True)
+    assert len(models) == 3
+    assert models[0]["name"] == "GPT-4o"
+    assert models[1]["name"] == "Claude 3.5 Sonnet"
+    assert models[2]["name"] == "Muse Spark 1.3"
+    assert len(httpx_mock.get_requests()) == 2

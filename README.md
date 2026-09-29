@@ -153,6 +153,58 @@ aanalysis digest all --json
 aanalysis digest all --json --limit 3
 ```
 
+### Text-to-Speech (TTS) Models
+
+Access Artificial Analysis Speech Arena / TTS leaderboard data.
+
+#### TTS Model Listing
+
+```bash
+# List all TTS models
+aanalysis tts models list
+
+# Filter by creator
+aanalysis tts models list --creator "ElevenLabs"
+
+# Minimum Elo threshold
+aanalysis tts models list --min-elo 1250.0
+
+# With all output options
+aanalysis tts models list --json --limit 10 --refresh
+```
+
+#### TTS Digests
+
+**Smartest TTS Models** (by Elo rating):
+```bash
+aanalysis tts digest smartest
+aanalysis tts digest smartest --limit 5
+```
+
+**Smart & Fast TTS** (quality + speed when available):
+```bash
+aanalysis tts digest smart-fast
+```
+Note: Speed data requires Pro tier. Free tier falls back to Elo ranking.
+
+**Smart & Cheap TTS** (cost efficiency when available):
+```bash
+aanalysis tts digest smart-cheap
+```
+Note: Pricing data requires Pro tier. Free tier returns exit code 5.
+
+**All TTS Digests** (agent-friendly):
+```bash
+aanalysis tts digest all --json
+aanalysis tts digest all --json --limit 3
+```
+
+**TTS Model Fields** (free tier):
+- Rank, Elo, CI95 (confidence interval)
+- Name, Slug, ID, Creator
+- Price per 1M chars (Pro tier only)
+- Chars per second (Pro tier only)
+
 ### Output Formats
 
 All commands support multiple output formats:

@@ -38,6 +38,17 @@ app.add_typer(models_app, name="models")
 digest_app = typer.Typer(help="Digest commands")
 app.add_typer(digest_app, name="digest")
 
+# TTS command group
+tts_app = typer.Typer(help="Text-to-Speech model commands")
+app.add_typer(tts_app, name="tts")
+
+tts_models_app = typer.Typer(help="TTS model listing")
+tts_app.add_typer(tts_models_app, name="models")
+
+tts_digest_app = typer.Typer(help="TTS model digests")
+tts_app.add_typer(tts_digest_app, name="digest")
+
+
 
 # Global options
 class GlobalOptions:
@@ -459,6 +470,253 @@ def digest_all(
                 "frontier": pick_recommendation(models, "frontier"),
                 "coding_agent": pick_recommendation(models, "coding-agent"),
             }
+        }
+        
+        output_json(all_digests, compact=compact)
+        
+    except Exception as e:
+        handle_api_error(e)
+
+
+# ============================================================================
+# TTS Commands
+# ============================================================================
+
+@tts_models_app.command("list")
+def tts_models_list(
+    limit: Annotated[Optional[int], typer.Option(help="Limit number of results")] = None,
+    creator: Annotated[Optional[str], typer.Option(help="Filter by creator")] = None,
+    min_elo: Annotated[Optional[float], typer.Option("--min-elo", help="Minimum Elo rating")] = None,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Bust cache")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
+    compact: Annotated[bool, typer.Option("--compact", help="Compact JSON")] = False,
+    select: Annotated[Optional[str], typer.Option("--select", help="Select fields (comma-separated)")] = None,
+    csv_output: Annotated[bool, typer.Option("--csv", help="Output CSV")] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", help="Quiet mode")] = False,
+):
+    """List TTS models from Artificial Analysis Speech Arena."""
+    # Set global options
+    global_opts.json_output = json_output
+    global_opts.compact = compact
+    global_opts.csv_output = csv_output
+    global_opts.quiet = quiet
+    if select:
+        global_opts.select_fields = [f.strip() for f in select.split(",")]
+    
+    try:
+        from aanalysis.tts_digest import filter_tts_models, normalize_tts_model, rank_by_elo
+        from aanalysis.tts_output import output_tts_models
+        
+        client = ArtificialAnalysisClient()
+        models = client.fetch_all_tts_models(refresh=refresh)
+        
+        # Normalize models
+        models = [normalize_tts_model(m) for m in models]
+        
+        # Apply filters
+        models = filter_tts_models(models, creator=creator, min_elo=min_elo)
+        
+        # Sort by Elo by default
+        models = rank_by_elo(models, limit=limit)
+        
+        # Check if any models have price data
+        has_price = any(m.get("price_per_1m_characters") for m in models)
+        has_speed = any(m.get("chars_per_second") for m in models)
+        
+        # Output
+        output_tts_models(
+            models,
+            title="TTS Models",
+            output_format=get_output_format(),
+            compact=compact,
+            select=global_opts.select_fields,
+            show_price=has_price,
+            show_speed=has_speed
+        )
+        
+    except Exception as e:
+        handle_api_error(e)
+
+
+@tts_digest_app.command("smartest")
+def tts_digest_smartest(
+    limit: Annotated[int, typer.Option(help="Limit number of results")] = 10,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Bust cache")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
+    compact: Annotated[bool, typer.Option("--compact", help="Compact JSON")] = False,
+    select: Annotated[Optional[str], typer.Option("--select", help="Select fields (comma-separated)")] = None,
+    csv_output: Annotated[bool, typer.Option("--csv", help="Output CSV")] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", help="Quiet mode")] = False,
+):
+    """Top TTS models by Elo rating (quality)."""
+    # Set global options
+    global_opts.json_output = json_output
+    global_opts.compact = compact
+    global_opts.csv_output = csv_output
+    global_opts.quiet = quiet
+    if select:
+        global_opts.select_fields = [f.strip() for f in select.split(",")]
+    
+    try:
+        from aanalysis.tts_digest import normalize_tts_model, rank_by_elo
+        from aanalysis.tts_output import output_tts_models
+        
+        client = ArtificialAnalysisClient()
+        models = client.fetch_all_tts_models(refresh=refresh)
+        models = [normalize_tts_model(m) for m in models]
+        
+        ranked = rank_by_elo(models, limit=limit)
+        
+        has_price = any(m.get("price_per_1m_characters") for m in ranked)
+        has_speed = any(m.get("chars_per_second") for m in ranked)
+        
+        output_tts_models(
+            ranked,
+            title=f"Top {limit} TTS Models by Elo",
+            output_format=get_output_format(),
+            compact=compact,
+            select=global_opts.select_fields,
+            show_price=has_price,
+            show_speed=has_speed
+        )
+        
+    except Exception as e:
+        handle_api_error(e)
+
+
+@tts_digest_app.command("smart-fast")
+def tts_digest_smart_fast(
+    limit: Annotated[int, typer.Option(help="Limit number of results")] = 10,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Bust cache")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
+    compact: Annotated[bool, typer.Option("--compact", help="Compact JSON")] = False,
+    select: Annotated[Optional[str], typer.Option("--select", help="Select fields (comma-separated)")] = None,
+    csv_output: Annotated[bool, typer.Option("--csv", help="Output CSV")] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", help="Quiet mode")] = False,
+):
+    """Top TTS models by quality + speed composite (when speed data available)."""
+    # Set global options
+    global_opts.json_output = json_output
+    global_opts.compact = compact
+    global_opts.csv_output = csv_output
+    global_opts.quiet = quiet
+    if select:
+        global_opts.select_fields = [f.strip() for f in select.split(",")]
+    
+    try:
+        from aanalysis.tts_digest import normalize_tts_model, rank_by_smart_fast_tts
+        from aanalysis.tts_output import output_tts_models
+        
+        client = ArtificialAnalysisClient()
+        models = client.fetch_all_tts_models(refresh=refresh)
+        models = [normalize_tts_model(m) for m in models]
+        
+        ranked = rank_by_smart_fast_tts(models, limit=limit)
+        
+        if not ranked:
+            if not quiet:
+                print("Note: Speed data not available on free tier. Upgrade to Pro for speed metrics.", file=sys.stderr)
+            sys.exit(5)
+        
+        has_price = any(m.get("price_per_1m_characters") for m in ranked)
+        has_speed = any(m.get("chars_per_second") for m in ranked)
+        
+        output_tts_models(
+            ranked,
+            title=f"Top {limit} Smart & Fast TTS Models",
+            output_format=get_output_format(),
+            compact=compact,
+            select=global_opts.select_fields,
+            show_price=has_price,
+            show_speed=True  # Force show since we filtered for speed
+        )
+        
+    except Exception as e:
+        handle_api_error(e)
+
+
+@tts_digest_app.command("smart-cheap")
+def tts_digest_smart_cheap(
+    limit: Annotated[int, typer.Option(help="Limit number of results")] = 10,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Bust cache")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
+    compact: Annotated[bool, typer.Option("--compact", help="Compact JSON")] = False,
+    select: Annotated[Optional[str], typer.Option("--select", help="Select fields (comma-separated)")] = None,
+    csv_output: Annotated[bool, typer.Option("--csv", help="Output CSV")] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", help="Quiet mode")] = False,
+):
+    """Top TTS models by cost efficiency (when pricing data available)."""
+    # Set global options
+    global_opts.json_output = json_output
+    global_opts.compact = compact
+    global_opts.csv_output = csv_output
+    global_opts.quiet = quiet
+    if select:
+        global_opts.select_fields = [f.strip() for f in select.split(",")]
+    
+    try:
+        from aanalysis.tts_digest import normalize_tts_model, rank_by_smart_cheap_tts
+        from aanalysis.tts_output import output_tts_models
+        
+        client = ArtificialAnalysisClient()
+        models = client.fetch_all_tts_models(refresh=refresh)
+        models = [normalize_tts_model(m) for m in models]
+        
+        ranked = rank_by_smart_cheap_tts(models, limit=limit)
+        
+        if not ranked:
+            if not quiet:
+                print("Note: Pricing data not available on free tier. Upgrade to Pro for pricing metrics.", file=sys.stderr)
+            sys.exit(5)
+        
+        has_speed = any(m.get("chars_per_second") for m in ranked)
+        
+        output_tts_models(
+            ranked,
+            title=f"Top {limit} Cost-Efficient TTS Models",
+            output_format=get_output_format(),
+            compact=compact,
+            select=global_opts.select_fields,
+            show_price=True,  # Force show since we filtered for price
+            show_speed=has_speed
+        )
+        
+    except Exception as e:
+        handle_api_error(e)
+
+
+@tts_digest_app.command("all")
+def tts_digest_all(
+    limit: Annotated[int, typer.Option(help="Limit per digest")] = 5,
+    refresh: Annotated[bool, typer.Option("--refresh", help="Bust cache")] = False,
+    json_output: Annotated[bool, typer.Option("--json", help="Output JSON")] = False,
+    compact: Annotated[bool, typer.Option("--compact", help="Compact JSON")] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", help="Quiet mode")] = False,
+):
+    """Run all TTS digests in one agent-friendly payload."""
+    # Set global options
+    global_opts.json_output = json_output
+    global_opts.compact = compact
+    global_opts.quiet = quiet
+    
+    try:
+        from aanalysis.tts_digest import (
+            normalize_tts_model,
+            rank_by_elo,
+            rank_by_smart_fast_tts,
+            rank_by_smart_cheap_tts
+        )
+        from aanalysis.tts_output import build_tts_table_data
+        
+        client = ArtificialAnalysisClient()
+        models = client.fetch_all_tts_models(refresh=refresh)
+        models = [normalize_tts_model(m) for m in models]
+        
+        # Generate all digests
+        all_digests = {
+            "smartest": build_tts_table_data(rank_by_elo(models, limit=limit)),
+            "smart_fast": build_tts_table_data(rank_by_smart_fast_tts(models, limit=limit)),
+            "smart_cheap": build_tts_table_data(rank_by_smart_cheap_tts(models, limit=limit)),
         }
         
         output_json(all_digests, compact=compact)

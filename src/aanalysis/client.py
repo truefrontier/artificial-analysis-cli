@@ -187,3 +187,37 @@ class ArtificialAnalysisClient:
             page += 1
         
         return models
+    
+    def list_tts_models(self, refresh: bool = False) -> dict:
+        """List TTS models from free tier API.
+        
+        Args:
+            refresh: Bust cache
+            
+        Returns:
+            Response with status and data keys
+        """
+        # TTS endpoint is at different path - don't double the base URL
+        return self._request(
+            "/data/media/text-to-speech",
+            params={},
+            use_cache=not refresh
+        )
+    
+    def fetch_all_tts_models(self, refresh: bool = False) -> list[dict]:
+        """Fetch all TTS models.
+        
+        Args:
+            refresh: Bust cache
+            
+        Returns:
+            List of all TTS models
+        """
+        response = self.list_tts_models(refresh=refresh)
+        
+        # TTS endpoint returns {status, data: [...]}
+        if response.get("status") == "success":
+            return response.get("data", [])
+        
+        # Also try alternative free endpoint shape
+        return response.get("data", [])

@@ -177,7 +177,7 @@ class ArtificialAnalysisClient:
             
             models.extend(page_models)
             
-            # Check pagination - handle both top-level and meta.pagination
+            # Check pagination (API has used both top-level and meta forms)
             pagination = response.get("pagination") or (response.get("meta") or {}).get("pagination") or {}
             has_more = pagination.get("has_more", False) or pagination.get("has_next", False)
             if not has_more:
@@ -186,3 +186,37 @@ class ArtificialAnalysisClient:
             page += 1
         
         return models
+
+    
+    def list_tts_models(self, refresh: bool = False) -> dict:
+        """List TTS models from free tier API.
+        
+        Args:
+            refresh: Bust cache
+            
+        Returns:
+            Response with status and data keys
+        """
+        # TTS endpoint path is relative to BASE_URL (.../api/v2)
+        return self._request(
+            "/data/media/text-to-speech",
+            params={},
+            use_cache=not refresh
+        )
+    
+    def fetch_all_tts_models(self, refresh: bool = False) -> list[dict]:
+        """Fetch all TTS models.
+        
+        Args:
+            refresh: Bust cache
+            
+        Returns:
+            List of all TTS models
+        """
+        response = self.list_tts_models(refresh=refresh)
+        
+        # TTS endpoint returns {status, data: [...]} — status may be 200 or "success"
+        data = response.get("data", [])
+        if data or response.get("status") in ("success", 200):
+            return data
+        return []

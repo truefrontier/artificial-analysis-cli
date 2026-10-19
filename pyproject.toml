@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "artificial-analysis-cli"
-version = "0.1.1"
-description = "Read-only CLI for Artificial Analysis LLM data"
+version = "0.2.0"
+description = "Read-only CLI for Artificial Analysis LLM and TTS data"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}

@@ -1,3 +1,5 @@
+> **Archived.** Replaced by [webcli](https://github.com/truefrontier/webcli). Install: `brew install truefrontier/tap/webcli` or `pipx install truefrontier-webcli`. The equivalent command is now `webcli aa`.
+
 # artificial-analysis-cli
 
 Read-only CLI for [Artificial Analysis](https://artificialanalysis.ai) LLM data. Part of Kevin's Press / True Frontier agent-native CLI family.
